@@ -20,6 +20,13 @@ def _size(s: str) -> tuple[int, int]:
     return w_i, h_i
 
 
+def _speed(s: str) -> float:
+    v = float(s)
+    if v <= 0:
+        raise argparse.ArgumentTypeError("speed must be positive")
+    return v
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="babylapse",
@@ -42,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fill", choices=["blur", "black"], default="blur",
                    help="how to fill areas outside the source frame (default: %(default)s)")
     p.add_argument("--no-audio", action="store_true", help="drop audio")
+    p.add_argument("--speed", type=_speed, default=1.0,
+                   help="playback speed of the final video, e.g. 2 for twice as fast or 0.5 for half speed; "
+                        "audio keeps its pitch (default: %(default)s)")
     p.add_argument("--crf", type=int, default=20, help="x264 quality, lower is better (default: %(default)s)")
     p.add_argument("--preset", default="medium", help="x264 preset (default: %(default)s)")
     p.add_argument("--font-scale", type=float, default=1.0, help="date label size multiplier")
@@ -74,6 +84,7 @@ def main(argv: list[str] | None = None) -> None:
         audio=not args.no_audio,
         date_format=args.date_format,
         font_scale=args.font_scale,
+        speed=args.speed,
     )
     run(
         args.inputs,

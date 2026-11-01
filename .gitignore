@@ -6,3 +6,5 @@ __pycache__/
 plan.json
 .babylapse_*/
 .pytest_cache/
+examples/output/
+/output/

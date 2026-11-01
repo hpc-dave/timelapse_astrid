@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .faces import FaceDetector
 from .metadata import VideoInfo, find_videos, probe_video
-from .render import RenderOptions, concat, render_segment
+from .render import RenderOptions, concat, render_segment, speed_up
 from .select import analyze, choose_window
 
 
@@ -108,5 +108,11 @@ def run(
             log(f"    face tracked in {cov:.0%} of frames")
             segments.append(seg)
         log(f"Concatenating {len(segments)} segments -> {output}")
-        concat(segments, output)
+        if opts.speed == 1.0:
+            concat(segments, output)
+        else:
+            merged = Path(tmp) / "merged.mp4"
+            concat(segments, merged)
+            log(f"Changing speed by {opts.speed:g}x")
+            speed_up(merged, output, opts.speed, opts)
     log("Done.")

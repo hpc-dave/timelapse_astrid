@@ -7,6 +7,7 @@ import pytest
 
 from babylapse.align import Layout, build_track, fit_similarity, matrix_to_params, params_to_matrix
 from babylapse.faces import Face
+from babylapse.render import atempo_chain
 from babylapse.metadata import parse_filename_datetime, recording_time
 from babylapse.select import Sample, choose_window
 
@@ -108,3 +109,15 @@ def test_choose_window_prefers_steady_visible_face():
 def test_choose_window_short_video():
     win = choose_window([Sample(0.0, None)], 4.0, (100, 100), 10.0)
     assert (win.start, win.end) == (0.0, 4.0)
+
+
+@pytest.mark.parametrize("factor, expected", [
+    (1.5, "atempo=1.5"),
+    (8, "atempo=2,atempo=2,atempo=2"),
+    (5, "atempo=2,atempo=2,atempo=1.25"),
+    (0.25, "atempo=0.5,atempo=0.5"),
+])
+def test_atempo_chain(factor, expected):
+    assert atempo_chain(factor) == expected
+    with pytest.raises(ValueError):
+        atempo_chain(0)

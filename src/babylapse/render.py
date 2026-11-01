@@ -28,6 +28,7 @@ class RenderOptions:
     audio: bool = True
     date_format: str = "%d/%m/%Y"
     font_scale: float = 1.0
+    speed: float = 1.0  # playback speed of the final video (2.0 = twice as fast)
 
 
 def track_segment(info: VideoInfo, start: float, end: float, detector: FaceDetector, opts: RenderOptions):
@@ -163,3 +164,38 @@ def concat(segments: list[Path], out: Path) -> None:
         )
     finally:
         lst.unlink(missing_ok=True)
+
+
+def atempo_chain(factor: float) -> str:
+    """ffmpeg audio filter that changes tempo by ``factor`` without changing pitch.
+
+    Older ffmpeg builds only accept 0.5 <= atempo <= 2, so larger or smaller
+    factors are split into a chain of steps within that range.
+    """
+    if factor <= 0:
+        raise ValueError("speed factor must be positive")
+    steps = []
+    while factor > 2.0:
+        steps.append(2.0)
+        factor /= 2.0
+    while factor < 0.5:
+        steps.append(0.5)
+        factor /= 0.5
+    steps.append(factor)
+    return ",".join(f"atempo={s:.6g}" for s in steps)
+
+
+def speed_up(src: Path, out: Path, factor: float, opts: RenderOptions) -> None:
+    """Re-encode ``src`` played ``factor`` times faster (``factor < 1`` slows it down).
+
+    The frame rate stays at ``opts.fps``: when speeding up, frames are dropped
+    rather than shown faster. Audio keeps its pitch.
+    """
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+           "-filter:v", f"setpts=PTS/{factor:.6g}", "-r", f"{opts.fps:g}",
+           "-c:v", "libx264", "-preset", opts.preset, "-crf", str(opts.crf), "-pix_fmt", "yuv420p"]
+    if opts.audio:
+        cmd += ["-filter:a", atempo_chain(factor), "-c:a", "aac", "-b:a", "192k"]
+    else:
+        cmd += ["-an"]
+    subprocess.run(cmd + ["-movflags", "+faststart", str(out)], check=True)

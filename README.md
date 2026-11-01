@@ -35,8 +35,25 @@ Useful options (see `babylapse --help`):
 | `--align` | smooth | `smooth` follows the face every frame; `fixed` uses one transform per clip |
 | `--smooth` | 0.4 | smoothing time constant (s); larger is calmer but lags fast movement |
 | `--fill` | blur | fill areas outside the source with a blurred copy (`blur`) or `black` |
+| `--speed` | 1 | playback speed of the final video (`2` = twice as fast, `0.5` = half speed); the sound keeps its pitch |
 | `--no-audio` | | drop the sound |
 | `--timezone` | system | zone used to turn UTC timestamps into the displayed date |
+
+`examples/run.py` is a starting point with every option written out and commented. It reads all videos from one directory and writes `timelapse.mp4` and `plan.json` into an output folder:
+
+```bash
+.venv/bin/python examples/run.py /path/to/videos          # writes to ./output/
+.venv/bin/python examples/run.py /path/to/videos my_out   # writes to my_out/
+```
+
+### Example without your own videos
+
+```bash
+.venv/bin/python examples/demo.py                # sample face: a public-domain NASA photo
+.venv/bin/python examples/demo.py --face me.jpg  # or any photo with one face
+```
+
+This makes three synthetic videos in `examples/output/videos/`. Each has a moving, tilting and zooming face, a different size and orientation, and a different recording date: one from metadata just before midnight UTC, one from metadata, and one from the file name only. It then runs babylapse on them and writes `examples/output/timelapse.mp4` and `plan.json`.
 
 ### Overriding the automatic choices
 
