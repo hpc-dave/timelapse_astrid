@@ -81,10 +81,14 @@ def params_to_matrix(p: np.ndarray, anchor: np.ndarray) -> np.ndarray:
     return m
 
 
-def cover_params(frame_shape: tuple[int, int], layout: Layout) -> np.ndarray:
-    """Fallback when no face is found: scale the frame to cover the output, centred."""
+def cover_params(frame_shape: tuple[int, int], layout: Layout, fit: bool = False) -> np.ndarray:
+    """Scale the frame to cover the output, centred (fallback when no face is found).
+
+    With ``fit=True`` the whole frame is shown instead (no cropping); the rest of
+    the output is filled according to the fill option.
+    """
     h, w = frame_shape
-    s = max(layout.width / w, layout.height / h)
+    s = (min if fit else max)(layout.width / w, layout.height / h)
     # The source point that must land on the anchor so that the frame centre lands on the output centre.
     out_c = np.array([layout.width / 2.0, layout.height / 2.0])
     c = np.array([w / 2.0, h / 2.0]) + (layout.anchor - out_c) / s
@@ -113,9 +117,12 @@ def build_track(
 
     mode="smooth": follow the face, low-pass filtered (sigma = ``smooth_seconds``).
     mode="fixed":  one transform per segment (median); no motion, face may drift.
+    mode="none":   no face alignment; the whole (upright) frame is fitted into the output.
     """
     times = np.asarray(times, float)
     n = len(times)
+    if mode == "none":
+        return np.tile(cover_params(frame_shape, layout, fit=True), (n, 1))
     target = layout.target_points()
     params = np.full((n, 4), np.nan)
     for i, lm in enumerate(landmarks):

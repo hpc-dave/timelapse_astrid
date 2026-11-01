@@ -32,7 +32,7 @@ Useful options (see `babylapse --help`):
 | `--size` | 1080x1080 | output resolution, e.g. `1920x1080` |
 | `--face-scale` | 0.12 | distance between the eyes as a fraction of output height (bigger means more zoom) |
 | `--eye-y` | 0.42 | vertical position of the eyes |
-| `--align` | smooth | `smooth` follows the face every frame; `fixed` uses one transform per clip |
+| `--align` | smooth | `smooth` follows the face every frame; `fixed` uses one transform per clip; `none` turns face alignment off and shows each whole video, upright, fitted into the output |
 | `--smooth` | 0.4 | smoothing time constant (s); larger is calmer but lags fast movement |
 | `--fill` | blur | fill areas outside the source with a blurred copy (`blur`) or `black` |
 | `--speed` | 1 | playback speed of the final video (`2` = twice as fast, `0.5` = half speed); the sound keeps its pitch |
@@ -44,6 +44,8 @@ Useful options (see `babylapse --help`):
 ```bash
 .venv/bin/python examples/run.py /path/to/videos          # writes to ./output/
 .venv/bin/python examples/run.py /path/to/videos my_out   # writes to my_out/
+.venv/bin/python examples/run.py /path/to/videos --length 4 --speed 2   # 4 s per video, twice as fast
+.venv/bin/python examples/run.py /path/to/videos --align none           # no face alignment
 ```
 
 ### Example without your own videos

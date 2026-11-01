@@ -22,7 +22,7 @@ class RenderOptions:
     fps: float = 30.0
     crf: int = 20
     preset: str = "medium"
-    align_mode: str = "smooth"
+    align_mode: str = "smooth"  # "smooth", "fixed" or "none"
     smooth_seconds: float = 0.4
     fill: str = "blur"  # "blur" or "black"
     audio: bool = True
@@ -32,7 +32,15 @@ class RenderOptions:
 
 
 def track_segment(info: VideoInfo, start: float, end: float, detector: FaceDetector, opts: RenderOptions):
-    """Pass 1: detect the face in every frame of the segment; return timestamps and transform params."""
+    """Pass 1: detect the face in every frame of the segment; return timestamps and transform params.
+
+    With ``align_mode="none"`` no faces are detected; coverage is then ``None``.
+    """
+    if opts.align_mode == "none":
+        for t, frame in iter_frames(info.path, info.fps, start, end):
+            times = np.array([t])
+            return times, build_track(times, [None], opts.layout, frame.shape[:2], "none"), None
+        raise RuntimeError(f"{info.path}: no frames decoded in [{start:.2f}, {end:.2f})")
     times: list[float] = []
     landmarks: list[np.ndarray | None] = []
     shape = (info.height, info.width)
@@ -108,8 +116,11 @@ def render_segment(
     out: Path,
     detector: FaceDetector,
     opts: RenderOptions,
-) -> float:
-    """Render ``[start, end)`` of ``info`` aligned to the canonical face layout. Returns face coverage."""
+) -> float | None:
+    """Render ``[start, end)`` of ``info`` aligned to the canonical face layout.
+
+    Returns the face coverage, or ``None`` when alignment is off.
+    """
     times, params, coverage = track_segment(info, start, end, detector, opts)
     w, h = opts.layout.width, opts.layout.height
     anchor = opts.layout.anchor

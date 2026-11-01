@@ -22,6 +22,7 @@ class VideoInfo:
     width: int
     height: int
     has_audio: bool
+    rotation: int = 0  # clockwise degrees the stored frames are turned when displayed (0/90/180/270)
 
 
 def ffprobe(path: Path) -> dict:
@@ -118,6 +119,24 @@ def _fps(stream: dict) -> float:
     return 30.0
 
 
+def rotation(stream: dict) -> int:
+    """Display rotation of a video stream in degrees (0, 90, 180 or 270).
+
+    ffprobe reports the display matrix as counter-clockwise degrees in side data
+    (newer files) or as a clockwise ``rotate`` tag (older ffmpeg).
+    """
+    for sd in stream.get("side_data_list", []):
+        if "rotation" in sd:
+            return round(-float(sd["rotation"]) / 90) * 90 % 360
+    tag = stream.get("tags", {}).get("rotate")
+    if tag is not None:
+        try:
+            return round(float(tag) / 90) * 90 % 360
+        except ValueError:
+            pass
+    return 0
+
+
 def probe_video(path: Path, local_tz: tzinfo) -> VideoInfo:
     probe = ffprobe(path)
     streams = probe.get("streams", [])
@@ -126,15 +145,20 @@ def probe_video(path: Path, local_tz: tzinfo) -> VideoInfo:
         raise ValueError(f"{path}: no video stream")
     duration = float(probe.get("format", {}).get("duration") or video.get("duration") or 0.0)
     recorded, source = recording_time(path, probe, local_tz)
+    rot = rotation(video)
+    width, height = int(video.get("width", 0)), int(video.get("height", 0))
+    if rot in (90, 270):  # report the size as displayed (upright)
+        width, height = height, width
     return VideoInfo(
         path=path,
         recorded=recorded,
         recorded_source=source,
         duration=duration,
         fps=_fps(video),
-        width=int(video.get("width", 0)),
-        height=int(video.get("height", 0)),
+        width=width,
+        height=height,
         has_audio=any(s.get("codec_type") == "audio" for s in streams),
+        rotation=rot,
     )
 
 

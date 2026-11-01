@@ -42,9 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="inter-eye distance as a fraction of output height (default: %(default)s)")
     p.add_argument("--eye-y", type=float, default=0.42,
                    help="vertical eye position as a fraction of output height (default: %(default)s)")
-    p.add_argument("--align", choices=["smooth", "fixed"], default="smooth",
+    p.add_argument("--align", choices=["smooth", "fixed", "none"], default="smooth",
                    help="smooth: follow the face every frame (low-pass filtered); "
-                        "fixed: one transform per clip (default: %(default)s)")
+                        "fixed: one transform per clip; none: no face alignment, the whole upright frame "
+                        "is fitted into the output (default: %(default)s)")
     p.add_argument("--smooth", type=float, default=0.4, help="smoothing time constant in seconds (default: %(default)s)")
     p.add_argument("--fill", choices=["blur", "black"], default="blur",
                    help="how to fill areas outside the source frame (default: %(default)s)")

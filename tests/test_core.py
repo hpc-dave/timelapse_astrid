@@ -2,13 +2,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import shutil
+import subprocess
+
 import numpy as np
 import pytest
 
 from babylapse.align import Layout, build_track, fit_similarity, matrix_to_params, params_to_matrix
 from babylapse.faces import Face
 from babylapse.render import atempo_chain
-from babylapse.metadata import parse_filename_datetime, recording_time
+from babylapse.metadata import parse_filename_datetime, probe_video, recording_time, rotation
 from babylapse.select import Sample, choose_window
 
 AMS = ZoneInfo("Europe/Amsterdam")
@@ -121,3 +124,46 @@ def test_atempo_chain(factor, expected):
     assert atempo_chain(factor) == expected
     with pytest.raises(ValueError):
         atempo_chain(0)
+
+
+@pytest.mark.parametrize("stream, expected", [
+    ({}, 0),
+    ({"side_data_list": [{"rotation": -90}]}, 90),
+    ({"side_data_list": [{"rotation": 90}]}, 270),
+    ({"side_data_list": [{"rotation": 180}]}, 180),
+    ({"tags": {"rotate": "90"}}, 90),
+])
+def test_rotation(stream, expected):
+    assert rotation(stream) == expected
+
+
+def test_align_none_fits_whole_frame():
+    layout = Layout(1080, 1080)
+    params = build_track(np.array([0.0, 1.0]), [None, None], layout, (1920, 1080), "none")
+    m = params_to_matrix(params[0], layout.anchor)
+    corners = np.array([[0, 0, 1], [1080, 1920, 1]], float) @ m.T
+    # Portrait 1080x1920 into a square: full height, centred horizontally, not rotated.
+    np.testing.assert_allclose(corners, [[236.25, 0], [843.75, 1080]], atol=1e-6)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
+def test_rotated_video_is_read_upright(tmp_path):
+    from babylapse.video import iter_frames
+
+    plain, rotated = tmp_path / "plain.mp4", tmp_path / "rotated.mp4"
+    # Landscape 320x180 frame with a white box in the top-left corner.
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "color=black:s=320x180:d=1,drawbox=x=0:y=0:w=80:h=40:color=white:t=fill",
+                    "-c:v", "libx264", str(plain)], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(plain), "-c", "copy",
+                    "-metadata:s:v:0", "rotate=90", str(rotated)], check=True)
+    # Reference: the first frame as ffmpeg itself displays it (autorotated).
+    ref = subprocess.run(["ffmpeg", "-v", "error", "-i", str(rotated), "-frames:v", "1",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"], check=True, capture_output=True).stdout
+
+    info = probe_video(rotated, AMS)
+    assert (info.width, info.height) == (180, 320)
+    _, frame = next(iter_frames(rotated, info.fps))
+    assert frame.shape[:2] == (320, 180)
+    ref = np.frombuffer(ref, np.uint8).reshape(320, 180)
+    assert np.abs(frame[..., 1].astype(int) - ref).mean() < 5

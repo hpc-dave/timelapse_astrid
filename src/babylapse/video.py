@@ -1,4 +1,4 @@
-"""Frame reading helpers (OpenCV applies the rotation metadata of phone videos)."""
+"""Frame reading helpers. Frames are returned upright: the rotation metadata of phone videos is applied."""
 
 from __future__ import annotations
 
@@ -7,6 +7,16 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+
+
+def _open(path: Path) -> cv2.VideoCapture:
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        raise OSError(f"cannot open {path}")
+    # Apply the rotation tag (display matrix) the way players do. This is OpenCV's
+    # default with the FFmpeg backend; set it explicitly so it never silently changes.
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+    return cap
 
 
 def iter_frames(
@@ -22,9 +32,7 @@ def iter_frames(
     are decoded; the others are yielded with ``frame=None`` (cheap ``grab``).
     Seeking is done to ~2 s before ``start`` and verified via timestamps.
     """
-    cap = cv2.VideoCapture(str(path))
-    if not cap.isOpened():
-        raise OSError(f"cannot open {path}")
+    cap = _open(path)
     try:
         index = 0
         if start > 2.0:
@@ -32,7 +40,7 @@ def iter_frames(
             pos = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             if pos > start or pos <= 0:  # unreliable seek: start over from the beginning
                 cap.release()
-                cap = cv2.VideoCapture(str(path))
+                cap = _open(path)
             else:
                 index = int(round(pos * fps_hint))
         last_t = -1.0

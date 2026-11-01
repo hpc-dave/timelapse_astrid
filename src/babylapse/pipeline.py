@@ -105,7 +105,8 @@ def run(
             seg = Path(tmp) / f"seg_{i:04d}.mp4"
             log(f"[{i}/{len(plan)}] rendering {Path(e.file).name} {e.start:.1f}-{e.end:.1f} s")
             cov = render_segment(info, e.start, e.end, datetime.fromisoformat(e.recorded), seg, detector, opts)
-            log(f"    face tracked in {cov:.0%} of frames")
+            if cov is not None:
+                log(f"    face tracked in {cov:.0%} of frames")
             segments.append(seg)
         log(f"Concatenating {len(segments)} segments -> {output}")
         if opts.speed == 1.0:
