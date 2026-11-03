@@ -37,6 +37,7 @@ Useful options (see `babylapse --help`):
 | `--fill` | blur | fill areas outside the source with a blurred copy (`blur`) or `black` |
 | `--speed` | 1 | playback speed of the final video (`2` = twice as fast, `0.5` = half speed); the sound keeps its pitch |
 | `--no-audio` | | drop the sound |
+| `--no-auto-rotate` | | don't turn untagged sideways videos upright (see Notes) |
 | `--timezone` | system | zone used to turn UTC timestamps into the displayed date |
 
 `examples/run.py` is a starting point with every option written out and commented. It reads all videos from one directory and writes `timelapse.mp4` and `plan.json` into an output folder:
@@ -59,7 +60,13 @@ This makes three synthetic videos in `examples/output/videos/`. Each has a movin
 
 ### Overriding the automatic choices
 
-With `--plan plan.json`, the chosen windows are saved after the analysis step. On later runs, if that file already exists, it is used and the analysis is skipped. Edit `start`/`end` to pick a different moment, or `recorded` to fix a wrong date. Delete an entry to drop a video. Use `--analyze-only` to only produce the plan.
+With `--plan plan.json`, the chosen windows are saved after the analysis step. On later runs, if that file already exists, it is used and the analysis is skipped. Edit `start`/`end` to pick a different moment, `recorded` to fix a wrong date, or `rotate` (0, 90, 180 or 270, clockwise) to turn a video that is still sideways. Set `"skip": true` to leave a video out. Don't delete its entry: the video would then count as new on the next run and be added again. Use `--analyze-only` to only produce the plan.
+
+### Adding new videos later
+
+Run the same command again on the same output folder. Videos in the source folder that are not in `plan.json` yet are analysed and added in recording order. Videos already in the plan are not analysed again. Use `--no-rescan` to use the plan as it is.
+
+Every rendered clip is kept in `<output name>_segments/` next to the output (for example `output/timelapse_segments/`). On later runs a clip is rendered again only when something that affects it has changed: its plan entry, the source file, or a rendering option such as `--size`, `--align` or `--date-format`. All other clips are reused, so adding a few videos only renders those few. The final video is then joined from the clips without re-encoding them. With `--speed` other than 1, the whole joined video is still re-encoded once. Clips that are no longer needed are deleted. Use `--no-cache` to render everything again and keep no clips.
 
 ## Notes
 
@@ -67,6 +74,7 @@ With `--plan plan.json`, the chosen windows are saved after the analysis step. O
 - If no face is found in a window, the clip is centre-cropped and a warning is printed.
 - When several faces are visible, the largest one is chosen first and then tracked, so a parent's face won't steal the alignment.
 - Phone rotation metadata is applied automatically by OpenCV.
+- Some phone videos have no rotation metadata and play sideways, typically when the phone pointed straight down as recording started. For videos without a rotation tag, a few frames are turned by 0/90/180/270 degrees and the face detector is run on each. If another orientation finds the face clearly more confidently, the video is turned and a message is printed. The correction is saved as `rotate` in the plan. Turn this off with `--no-auto-rotate`.
 
 ## Tests
 

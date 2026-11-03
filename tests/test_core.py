@@ -167,3 +167,85 @@ def test_rotated_video_is_read_upright(tmp_path):
     assert frame.shape[:2] == (320, 180)
     ref = np.frombuffer(ref, np.uint8).reshape(320, 180)
     assert np.abs(frame[..., 1].astype(int) - ref).mean() < 5
+
+
+@pytest.mark.parametrize("scores, expected", [
+    ({0: 0.92, 90: 0.30, 180: 0.80, 270: 0.60}, 0),   # upright video: keep
+    ({0: 0.56, 90: 0.92, 180: 0.00, 270: 0.75}, 90),  # untagged sideways video: turn
+    ({0: 0.80, 90: 0.59, 180: 0.49, 270: 0.85}, 0),   # slightly better elsewhere: not enough margin
+    ({0: 0.10, 90: 0.50, 180: 0.00, 270: 0.00}, 0),   # no confident face anywhere: keep
+    ({0: 0.00, 90: 0.00, 180: 0.90, 270: 0.00}, 180),
+])
+def test_choose_rotation(scores, expected):
+    from babylapse.orient import choose_rotation
+
+    assert choose_rotation(scores) == expected
+
+
+def test_with_extra_rotation_swaps_size():
+    from babylapse.metadata import VideoInfo, with_extra_rotation
+
+    info = VideoInfo(Path("x.mp4"), datetime(2026, 1, 1, tzinfo=AMS), "test", 1.0, 30.0, 1920, 1080, False)
+    turned = with_extra_rotation(info, 90)
+    assert (turned.width, turned.height, turned.extra_rotation) == (1080, 1920, 90)
+    assert (with_extra_rotation(turned, 180).width, with_extra_rotation(turned, 0).width) == (1920, 1920)
+    with pytest.raises(ValueError):
+        with_extra_rotation(info, 45)
+
+
+def test_old_plan_without_rotate_loads(tmp_path):
+    from babylapse.pipeline import load_plan
+
+    f = tmp_path / "plan.json"
+    f.write_text('[{"file": "a.mp4", "recorded": "2026-01-01T00:00:00+01:00", "recorded_source": "x", '
+                 '"start": 0.0, "end": 5.0}]')
+    assert load_plan(f)[0].rotate == 0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
+def test_iter_frames_extra_rotation(tmp_path):
+    from babylapse.video import iter_frames
+
+    src = tmp_path / "plain.mp4"
+    # Landscape 320x180 frame with a white box in the top-left corner.
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "color=black:s=320x180:d=1,drawbox=x=0:y=0:w=80:h=40:color=white:t=fill",
+                    "-c:v", "libx264", str(src)], check=True)
+    _, frame = next(iter_frames(src, 25.0, rotate=90))
+    assert frame.shape[:2] == (320, 180)
+    # Turned clockwise, the top-left box ends up in the top-right corner (40 wide, 80 tall).
+    assert frame[:80, -40:].mean() > 200 and frame[:80, :40].mean() < 50
+
+
+def test_update_plan_only_analyses_new_videos(tmp_path, monkeypatch):
+    from babylapse import pipeline
+    from babylapse.pipeline import PlanEntry, update_plan
+
+    for name in ("a.mp4", "b.mp4", "c.mov"):
+        (tmp_path / name).write_bytes(b"x")
+    plan = [PlanEntry(str(tmp_path / "a.mp4"), "2026-01-01T00:00:00+01:00", "x", 0, 5),
+            PlanEntry(str(tmp_path / "b.mp4"), "2026-01-02T00:00:00+01:00", "x", 0, 5, skip=True)]
+    seen = []
+    monkeypatch.setattr(pipeline, "probe_all", lambda files, tz, log: seen.extend(files) or [])
+    monkeypatch.setattr(pipeline, "make_plan", lambda infos, *a, **k: ["new"])
+    assert update_plan(plan, [tmp_path], None, timezone.utc, 10, 2, False, log=lambda *_: None) == ["new"]
+    assert seen == [tmp_path / "c.mov"]  # a is known, b is known (skipped)
+
+
+def test_segment_key_tracks_entry_options_and_source(tmp_path):
+    import os
+    from dataclasses import replace
+    from babylapse.pipeline import PlanEntry, segment_key
+    from babylapse.render import RenderOptions
+
+    src = tmp_path / "a.mp4"
+    src.write_bytes(b"x")
+    e = PlanEntry(str(src), "2026-01-01T00:00:00+01:00", "x", 0.0, 5.0)
+    opts = RenderOptions(Layout(720, 720))
+    det = {"model": None, "score_threshold": 0.6}
+    k = segment_key(e, opts, det)
+    assert k == segment_key(e, replace(opts, speed=2.0), det)  # speed is applied after joining
+    assert k != segment_key(replace(e, start=1.0), opts, det)
+    assert k != segment_key(e, replace(opts, align_mode="none"), det)
+    os.utime(src, ns=(0, 0))
+    assert k != segment_key(e, opts, det)

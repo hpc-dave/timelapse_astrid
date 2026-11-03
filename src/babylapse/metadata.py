@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
@@ -23,6 +23,16 @@ class VideoInfo:
     height: int
     has_audio: bool
     rotation: int = 0  # clockwise degrees the stored frames are turned when displayed (0/90/180/270)
+    extra_rotation: int = 0  # clockwise correction applied on top of the metadata (for untagged sideways videos)
+
+
+def with_extra_rotation(info: VideoInfo, degrees: int) -> VideoInfo:
+    """Copy of ``info`` whose frames are turned ``degrees`` clockwise; width/height follow."""
+    degrees %= 360
+    if degrees not in (0, 90, 180, 270):
+        raise ValueError(f"rotation must be a multiple of 90 degrees, got {degrees}")
+    w, h = (info.height, info.width) if (degrees - info.extra_rotation) % 180 else (info.width, info.height)
+    return replace(info, extra_rotation=degrees, width=w, height=h)
 
 
 def ffprobe(path: Path) -> dict:

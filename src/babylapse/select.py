@@ -30,7 +30,7 @@ def analyze(info: VideoInfo, detector: FaceDetector, sample_fps: float = 2.0) ->
     samples: list[Sample] = []
     shape = (info.height, info.width)
     prev: Face | None = None
-    for t, frame in iter_frames(info.path, info.fps, decode_every=1.0 / sample_fps):
+    for t, frame in iter_frames(info.path, info.fps, decode_every=1.0 / sample_fps, rotate=info.extra_rotation):
         if frame is None:
             continue
         shape = frame.shape[:2]

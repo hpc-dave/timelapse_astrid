@@ -19,18 +19,29 @@ def _open(path: Path) -> cv2.VideoCapture:
     return cap
 
 
+_ROTATE_CODES = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
+
+
+def rotate_frame(frame: np.ndarray, degrees: int) -> np.ndarray:
+    """Turn a frame clockwise by 0, 90, 180 or 270 degrees."""
+    degrees %= 360
+    return frame if degrees == 0 else cv2.rotate(frame, _ROTATE_CODES[degrees])
+
+
 def iter_frames(
     path: Path,
     fps_hint: float,
     start: float = 0.0,
     end: float | None = None,
     decode_every: float | None = None,
+    rotate: int = 0,
 ) -> Iterator[tuple[float, np.ndarray | None]]:
     """Yield ``(timestamp_s, frame)`` for frames with ``start <= t < end``.
 
     If ``decode_every`` is given, only frames at least that many seconds apart
     are decoded; the others are yielded with ``frame=None`` (cheap ``grab``).
     Seeking is done to ~2 s before ``start`` and verified via timestamps.
+    ``rotate`` turns every frame clockwise on top of the file's rotation metadata.
     """
     cap = _open(path)
     try:
@@ -63,7 +74,7 @@ def iter_frames(
                     break
                 if decode_every is not None:
                     next_decode = t + decode_every
-                yield t, frame
+                yield t, rotate_frame(frame, rotate)
             else:
                 yield t, None
     finally:

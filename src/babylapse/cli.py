@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="smooth: follow the face every frame (low-pass filtered); "
                         "fixed: one transform per clip; none: no face alignment, the whole upright frame "
                         "is fitted into the output (default: %(default)s)")
+    p.add_argument("--no-auto-rotate", action="store_true",
+                   help="don't turn videos that have no rotation metadata but play sideways (detected from faces)")
     p.add_argument("--smooth", type=float, default=0.4, help="smoothing time constant in seconds (default: %(default)s)")
     p.add_argument("--fill", choices=["blur", "black"], default="blur",
                    help="how to fill areas outside the source frame (default: %(default)s)")
@@ -64,7 +66,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-confidence", type=float, default=0.6, help="face detector score threshold (default: %(default)s)")
     p.add_argument("--plan", type=Path, default=None,
                    help="JSON file with the chosen windows. Written after analysis; if it already exists it is "
-                        "used instead of analysing (edit start/end/recorded by hand to override).")
+                        "reused and only videos not listed in it yet are analysed and added "
+                        "(edit start/end/recorded/rotate/skip by hand to override).")
+    p.add_argument("--no-rescan", action="store_true",
+                   help="with an existing --plan, use it as is and don't look for new videos")
+    p.add_argument("--no-cache", action="store_true",
+                   help="render every segment again instead of reusing the ones kept in "
+                        "<output name>_segments/ next to the output")
     p.add_argument("--analyze-only", action="store_true", help="only choose the windows (use with --plan)")
     p.add_argument("--model", type=Path, default=None, help="path to YuNet .onnx (downloaded automatically if omitted)")
     return p
@@ -98,6 +106,9 @@ def main(argv: list[str] | None = None) -> None:
         analyze_only=args.analyze_only,
         model=args.model,
         score_threshold=args.min_confidence,
+        auto_rotate=not args.no_auto_rotate,
+        rescan=not args.no_rescan,
+        cache=not args.no_cache,
     )
 
 

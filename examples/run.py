@@ -12,6 +12,8 @@ values below to taste. `babylapse --help` lists all options.
 
 Note: plan.json stores the chosen segments, so delete it (or use another output
 folder) after changing --length; --speed and --align apply without re-analysis.
+Running again on the same output folder only analyses and renders videos that are
+new in video_dir. The other clips are reused from output/timelapse_segments/.
 """
 
 from __future__ import annotations

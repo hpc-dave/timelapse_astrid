@@ -37,7 +37,7 @@ def track_segment(info: VideoInfo, start: float, end: float, detector: FaceDetec
     With ``align_mode="none"`` no faces are detected; coverage is then ``None``.
     """
     if opts.align_mode == "none":
-        for t, frame in iter_frames(info.path, info.fps, start, end):
+        for t, frame in iter_frames(info.path, info.fps, start, end, rotate=info.extra_rotation):
             times = np.array([t])
             return times, build_track(times, [None], opts.layout, frame.shape[:2], "none"), None
         raise RuntimeError(f"{info.path}: no frames decoded in [{start:.2f}, {end:.2f})")
@@ -45,7 +45,7 @@ def track_segment(info: VideoInfo, start: float, end: float, detector: FaceDetec
     landmarks: list[np.ndarray | None] = []
     shape = (info.height, info.width)
     prev: Face | None = None
-    for t, frame in iter_frames(info.path, info.fps, start, end):
+    for t, frame in iter_frames(info.path, info.fps, start, end, rotate=info.extra_rotation):
         shape = frame.shape[:2]
         face = detector.detect(frame, prev)
         if face is not None:
@@ -148,7 +148,7 @@ def render_segment(
             proc.stdin.write(out_img.tobytes())
 
         # Constant-frame-rate resampling: output frame k shows the latest source frame with ts <= start + k/fps.
-        for t, frame in iter_frames(info.path, info.fps, start, end):
+        for t, frame in iter_frames(info.path, info.fps, start, end, rotate=info.extra_rotation):
             while k < n_out and start + k / opts.fps < t and last is not None:
                 emit(last[1], last[0])
                 k += 1
